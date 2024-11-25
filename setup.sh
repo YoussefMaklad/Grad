@@ -13,21 +13,14 @@ done
 
 # Copy the different versions of ChatAFL to the benchmark directories
 for subject in ./benchmark/subjects/*/*; do
-  rm -r $subject/aflnet 2>&1 >/dev/null
-  cp -r aflnet $subject/aflnet
-
   rm -r $subject/chatafl 2>&1 >/dev/null
   cp -r ChatAFL $subject/chatafl
-  
-  rm -r $subject/chatafl-cl1 2>&1 >/dev/null
-  cp -r ChatAFL-CL1 $subject/chatafl-cl1
   
   rm -r $subject/chatafl-cl2 2>&1 >/dev/null
   cp -r ChatAFL-CL2 $subject/chatafl-cl2
 done;
 
 # Build the docker images
-
 PFBENCH="$PWD/benchmark"
 cd $PFBENCH
 PFBENCH=$PFBENCH scripts/execution/profuzzbench_build_all.sh
