@@ -1,5 +1,10 @@
 from pydantic import BaseModel
 
+class ChoiceItem(BaseModel):
+    index: int
+    message: MessageItem
+    finish_reason: str
+    
 class MessageItem(BaseModel):
     role: str
     content: str
