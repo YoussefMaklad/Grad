@@ -47,40 +47,35 @@ char *chat_with_llm(char *prompt, char *model, int tries, float temperature)
     CURL *curl;
     CURLcode res = CURLE_OK;
     char *answer = NULL;
-    char *url = NULL;
-    if (strcmp(model, "instruct") == 0)
-    {
-        url = "https://api.openai.com/v1/completions";
-    }
-    else
-    {
-        url = "https://api.openai.com/v1/chat/completions";
-    }
-    char *auth_header = "Authorization: Bearer " OPENAI_TOKEN;
+    char *url = "http://host.docker.internal:8000/chat-llm";
+    
     char *content_header = "Content-Type: application/json";
     char *accept_header = "Accept: application/json";
     char *data = NULL;
-    if (strcmp(model, "instruct") == 0)
-    {
-        asprintf(&data, "{\"model\": \"gpt-3.5-turbo-instruct\", \"prompt\": \"%s\", \"max_tokens\": %d, \"temperature\": %f}", prompt, MAX_TOKENS, temperature);
-    }
-    else
-    {
-        asprintf(&data, "{\"model\": \"gpt-3.5-turbo\",\"messages\": %s, \"max_tokens\": %d, \"temperature\": %f}", prompt, MAX_TOKENS, temperature);
-    }
+    
+    // Format request data to match the existing API
+    asprintf(&data, 
+        "{"
+        "\"messages\": ["
+        "   {\"role\": \"user\", \"content\": %s}"
+        "],"
+        "\"model\": \"%s\","
+        "\"temperature\": %f,"
+        "\"max_tokens\": %d"
+        "}",
+        prompt, model, temperature, MAX_TOKENS);
+    
     curl_global_init(CURL_GLOBAL_DEFAULT);
     do
     {
         struct MemoryStruct chunk;
-
-        chunk.memory = malloc(1); /* will be grown as needed by the realloc above */
-        chunk.size = 0;           /* no data at this point */
+        chunk.memory = malloc(1);
+        chunk.size = 0;
 
         curl = curl_easy_init();
         if (curl)
         {
             struct curl_slist *headers = NULL;
-            headers = curl_slist_append(headers, auth_header);
             headers = curl_slist_append(headers, content_header);
             headers = curl_slist_append(headers, accept_header);
 
@@ -95,40 +90,25 @@ char *chat_with_llm(char *prompt, char *model, int tries, float temperature)
             if (res == CURLE_OK)
             {
                 json_object *jobj = json_tokener_parse(chunk.memory);
-
-                // Check if the "choices" key exists
+                
                 if (json_object_object_get_ex(jobj, "choices", NULL))
                 {
                     json_object *choices = json_object_object_get(jobj, "choices");
                     json_object *first_choice = json_object_array_get_idx(choices, 0);
-                    const char *data;
-
-                    // The answer begins with a newline character, so we remove it
-                    if (strcmp(model, "instruct") == 0)
-                    {
-                        json_object *jobj4 = json_object_object_get(first_choice, "text");
-                        data = json_object_get_string(jobj4);
-                    }
-                    else
-                    {
-                        json_object *jobj4 = json_object_object_get(first_choice, "message");
-                        json_object *jobj5 = json_object_object_get(jobj4, "content");
-                        data = json_object_get_string(jobj5);
-                    }
+                    json_object *message = json_object_object_get(first_choice, "message");
+                    json_object *content = json_object_object_get(message, "content");
+                    const char *data = json_object_get_string(content);
+                    
                     if (data[0] == '\n')
                         data++;
                     answer = strdup(data);
                 }
-                else
+                else if (json_object_object_get_ex(jobj, "error", NULL))
                 {
-                    printf("Error response is: %s\n", chunk.memory);
-                    sleep(2); // Sleep for a small amount of time to ensure that the service can recover
+                    printf("Error response: %s\n", chunk.memory);
+                    sleep(2);
                 }
                 json_object_put(jobj);
-            }
-            else
-            {
-                printf("Error: %s\n", curl_easy_strerror(res));
             }
 
             curl_slist_free_all(headers);
@@ -153,12 +133,21 @@ char *construct_prompt_stall(char *protocol_name, char *examples, char *history)
                      "The next proper client request that can affect the server's state are:\\n\\n"
                      "Desired format of real client requests:\\n%sCommunication History:\\n\\\"\\\"\\\"\\n%s\\\"\\\"\\\"";
 
+    char *template = "In the %s protocol, the communication history between the %s client and the %s server is as follows: \n"
+                     "Communication History:\\n\\\"\\\"\\\"\\n%s\\\"\\\"\\\"\n"
+                     "Based on your observations, and according to the protocol state machine," 
+                     "provide the next proper client request (packet) that can affect the server's state. "
+                     "(Your response is expected to be only a machine-readable-format request that is ready to be sent to the server) \n\n"
+                     "Desired format of real client requests:\\n%s";
+
     char *prompt = NULL;
-    asprintf(&prompt, template, protocol_name, protocol_name, protocol_name, examples, history);
+    // asprintf(&prompt, template, protocol_name, protocol_name, protocol_name, examples, history);
+    asprintf(&prompt, template, protocol_name, protocol_name, protocol_name, history, examples);
 
     char *final_prompt = NULL;
 
-    asprintf(&final_prompt, "[{\"role\": \"system\", \"content\": \"You are a helpful assistant.\"}, {\"role\": \"user\", \"content\": \"%s\"}]", prompt);
+    // asprintf(&final_prompt, "[{\"role\": \"system\", \"content\": \"You are a helpful assistant.\"}, {\"role\": \"user\", \"content\": \"%s\"}]", prompt);
+    asprintf(&final_prompt, "%s", prompt);
 
     free(prompt);
 
@@ -179,7 +168,7 @@ char *construct_prompt_for_templates(char *protocol_name, char **final_msg)
                                 "GET: [\\\"GET <<VALUE>>\\\\r\\\\n\\\"]";
 
     char *msg = NULL;
-    asprintf(&msg, "%s\\n%s\\nFor the %s protocol, all of client request templates are :", prompt_rtsp_example, prompt_http_example, protocol_name);
+    asprintf(&msg, "%s\\n%s\\nFor the %s protocol, provide all the method templates, including optional headers. 1- Each request template should be a **list of strings**. 2- Use `<<VALUE>>` placeholders where appropriate. 3- Each line must end with (\\r\\n). 4- The entire template should be enclosed in square brackets `[]`. Your response is expected to be something like this. \n Response: \n For the %s protocol, the client request templates are: \n 1. DESCRIBE: [\"DESCRIBE <<VALUE>>\\r\\n\",\"CSeq: <<VALUE>>\\r\\n\",\"User-Agent: <<VALUE>>\\r\\n\",\"Accept: <<VALUE>>\\r\\n\",\"\\r\\n\"] \n (rest of templates)", prompt_rtsp_example, prompt_http_example, protocol_name, protocol_name);
     *final_msg = msg;
     /** Format of prompt_grammars
     prompt_grammars = [
@@ -189,7 +178,7 @@ char *construct_prompt_for_templates(char *protocol_name, char **final_msg)
      **/
     char *prompt_grammars = NULL;
 
-    asprintf(&prompt_grammars, "[{\"role\": \"system\", \"content\": \"You are a helpful assistant.\"}, {\"role\": \"user\", \"content\": \"%s\"}]", msg);
+    asprintf(&prompt_grammars, "%s", msg);
 
     return prompt_grammars;
 }

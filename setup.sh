@@ -2,14 +2,13 @@
 
 if [ -z $KEY ]; then
     echo "NO OPENAI API KEY PROVIDED! Please set the KEY environment variable"
-    exit 0
+    # exit 0
 fi
 
 # Update the openAI key
-for x in ChatAFL ChatAFL-CL1 ChatAFL-CL2;
-do
-  sed -i "s/#define OPENAI_TOKEN \".*\"/#define OPENAI_TOKEN \"$KEY\"/" $x/chat-llm.h
-done
+# for x in ChatAFL ChatAFL-CL1 ChatAFL-CL2; do
+#   sed -i "s/#define OPENAI_TOKEN \".*\"/#define OPENAI_TOKEN \"$KEY\"/" $x/chat-llm.h
+# done
 
 # Copy the different versions of ChatAFL to the benchmark directories
 for subject in ./benchmark/subjects/*/*; do

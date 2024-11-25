@@ -47,7 +47,7 @@ char *chat_with_llm(char *prompt, char *model, int tries, float temperature)
     CURL *curl;
     CURLcode res = CURLE_OK;
     char *answer = NULL;
-    char *url = "http://127.0.0.1:8000/chat-llm";
+    char *url = "http://host.docker.internal:8000/chat-llm";
     
     char *content_header = "Content-Type: application/json";
     char *accept_header = "Accept: application/json";
