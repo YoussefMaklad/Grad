@@ -1,44 +1,4 @@
 #!/bin/bash
-
-# Function to manage FuzAgent-API service
-function manage_lm_service() {
-    local action=$1
-    local service_dir="ChatAFL"
-    local pid_file="$service_dir/service.pid"
-
-    case "$action" in
-        start)
-            echo "Starting SLM-FuzzAgent-API service..."
-            cd $service_dir
-            python3 main.py &
-            echo $! > $pid_file
-            cd ..
-            echo "Waiting for service to initialize..."
-            sleep 5
-            echo "Service started on http://127.0.0.1:8000"
-            ;;
-        stop)
-            if [ -f "$pid_file" ]; then
-                echo "Stopping SLM-FuzAgent-API service..."
-                kill $(cat "$pid_file")
-                rm "$pid_file"
-                echo "Service stopped"
-            fi
-            ;;
-        status)
-            if [ -f "$pid_file" ] && ps -p $(cat "$pid_file") > /dev/null; then
-                echo "SLM-FuzzAgent-API service is running"
-                curl -s http://127.0.0.1:8000/health
-            else
-                echo "LM service is not running"
-            fi
-            ;;
-    esac
-}
-
-# Start the LM service
-manage_lm_service start
-
 PFBENCH="$PWD/benchmark"
 cd $PFBENCH
 
